@@ -10,6 +10,15 @@
   "monorepo": true,
   "root": "apps/ordering-app",
   "projects": {
+    "logging": {
+      "type": "application",
+      "root": "apps/logging",
+      "entryFile": "main",
+      "sourceRoot": "apps/logging/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/logging/tsconfig.app.json"
+      }
+    },
     "ordering-app": {
       "type": "application",
       "root": "apps/ordering-app",
