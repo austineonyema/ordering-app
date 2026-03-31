@@ -1,15 +1,61 @@
 services:
+  orders:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: orders
+    ports:
+      - "${ORDERS_SERVICE_PORT:-3002}:${ORDERS_SERVICE_PORT:-3002}"
+    environment:
+      PORT: ${ORDERS_SERVICE_PORT:-3002}
+      MONGO_DATABASE_URL: mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD}@mongodb-primary:27017,mongodb-secondary:27017/ordering-app?replicaSet=rs0&authSource=admin
+    command: sh -c "node dist/apps/orders/main"
+    depends_on:
+      - mongodb-primary
+      - mongodb-secondary
+      - mongodb-arbiter
+    restart: unless-stopped
+
+  auth:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: auth
+    # ports:
+    #   - "${AUTH_SERVICE_PORT:-3001}:${AUTH_SERVICE_PORT:-3001}"
+    environment:
+      PORT: ${AUTH_SERVICE_PORT:-3001}
+    command: sh -c "node dist/apps/auth/main"
+    restart: unless-stopped
+
+  billing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        APP_NAME: billing
+    # ports:
+    #   - "${BILLING_SERVICE_PORT:-3000}:${BILLING_SERVICE_PORT:-3000}"
+    environment:
+      PORT: ${BILLING_SERVICE_PORT:-3000}
+    command: sh -c "node dist/apps/billing/main"
+    restart: unless-stopped    
+
   mongodb-primary:
     image: docker.io/bitnami/mongodb@sha256:b69e28a2017af190348f14ebc279dc074d58f511f691ecec8ca8a468276e7cb6
     environment:
       - MONGODB_ADVERTISED_HOSTNAME=mongodb-primary
       - MONGODB_REPLICA_SET_MODE=primary
-      - MONGODB_ROOT_PASSWORD=password123
+      - MONGODB_REPLICA_SET_NAME=rs0
+      - MONGODB_ROOT_USER=${MONGO_ROOT_USERNAME:-root}
+      - MONGODB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
       - MONGODB_REPLICA_SET_KEY=replicasetkey123
     volumes:
       - 'mongodb_master_data:/bitnami/mongodb'
     ports:
-        - 27018:27017
+      - "27018:27017"
 
   mongodb-secondary:
     image: docker.io/bitnami/mongodb@sha256:b69e28a2017af190348f14ebc279dc074d58f511f691ecec8ca8a468276e7cb6
@@ -18,8 +64,10 @@ services:
     environment:
       - MONGODB_ADVERTISED_HOSTNAME=mongodb-secondary
       - MONGODB_REPLICA_SET_MODE=secondary
+      - MONGODB_REPLICA_SET_NAME=rs0
       - MONGODB_INITIAL_PRIMARY_HOST=mongodb-primary
-      - MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD=password123
+      - MONGODB_INITIAL_PRIMARY_ROOT_USER=${MONGO_ROOT_USERNAME:-root}
+      - MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
       - MONGODB_REPLICA_SET_KEY=replicasetkey123
 
   mongodb-arbiter:
@@ -29,8 +77,10 @@ services:
     environment:
       - MONGODB_ADVERTISED_HOSTNAME=mongodb-arbiter
       - MONGODB_REPLICA_SET_MODE=arbiter
+      - MONGODB_REPLICA_SET_NAME=rs0
       - MONGODB_INITIAL_PRIMARY_HOST=mongodb-primary
-      - MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD=password123
+      - MONGODB_INITIAL_PRIMARY_ROOT_USER=${MONGO_ROOT_USERNAME:-root}
+      - MONGODB_INITIAL_PRIMARY_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
       - MONGODB_REPLICA_SET_KEY=replicasetkey123
 
 volumes:
