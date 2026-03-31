@@ -8,26 +8,8 @@
     "tsConfigPath": "apps/ordering-app/tsconfig.app.json"
   },
   "monorepo": true,
-  "root": "apps/ordering-app",
+  "root": "apps/orders",
   "projects": {
-    "logging": {
-      "type": "application",
-      "root": "apps/logging",
-      "entryFile": "main",
-      "sourceRoot": "apps/logging/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/logging/tsconfig.app.json"
-      }
-    },
-    "ordering-app": {
-      "type": "application",
-      "root": "apps/ordering-app",
-      "entryFile": "main",
-      "sourceRoot": "apps/ordering-app/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/ordering-app/tsconfig.app.json"
-      }
-    },
     "orders": {
       "type": "application",
       "root": "apps/orders",
