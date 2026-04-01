@@ -1,8 +1,18 @@
 import { NestFactory } from '@nestjs/core';
+import { RmqService } from '@app/common';
 import { BillingModule } from './billing.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(BillingModule);
-  await app.listen(Number(process.env.PORT ?? process.env.port ?? 3000));
+  const rmqService = app.get<RmqService>('RmqService');
+  app.connectMicroservice(rmqService.getOptions('BILLING'));
+  await app.startAllMicroservices();
+  // app.useGlobalPipes(
+  //   new ValidationPipe({
+  //     whitelist: true,
+  //     forbidNonWhitelisted: true,
+  //     transform: true,
+  //   }),
+  // );
 }
 void bootstrap();
