@@ -10,6 +10,6 @@ export class OrdersService {
   }
 
   async createOrder(createOrderRequest: CreateOrderRequest) {
-    await this.ordersRepository.create(createOrderRequest);
+    return await this.ordersRepository.create(createOrderRequest);
   }
 }
