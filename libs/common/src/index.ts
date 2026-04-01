@@ -5,3 +5,5 @@ export * from './database/abstract.repository';
 export * from './database/abstract.schema';
 export * from './rmq/rmq.module';
 export * from './rmq/rmq.service';
+export * from './dto/order-request.dto';
+export * from './events/order-created.event';

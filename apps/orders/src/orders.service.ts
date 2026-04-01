@@ -1,8 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { OrderCreatedEvent } from '@app/common';
 import { CreateOrderRequest } from './dto/create-order.dto';
 import { OrdersRepository } from './orders.repository';
 import { BILLING_SERVICE } from './constants/services';
 import { ClientProxy } from '@nestjs/microservices';
+import { lastValueFrom } from 'rxjs';
 
 @Injectable()
 export class OrdersService {
@@ -15,7 +17,21 @@ export class OrdersService {
     return await this.ordersRepository.find({});
   }
 
-  async createOrder(createOrderRequest: CreateOrderRequest) {
-    return await this.ordersRepository.create(createOrderRequest);
+  async createOrder(request: CreateOrderRequest) {
+    const session = await this.ordersRepository.startTransaction();
+    try {
+      const order = await this.ordersRepository.create(request, { session });
+      const eventPayload: OrderCreatedEvent = {
+        request,
+      };
+      await lastValueFrom(
+        this.billingClient.emit('order_created', eventPayload),
+      );
+      await session.commitTransaction();
+      return order;
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    }
   }
 }
