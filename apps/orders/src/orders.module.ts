@@ -3,10 +3,11 @@ import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
 import { ConfigModule } from '@nestjs/config';
 import Joi from 'joi';
-import { DatabaseModule } from '@app/common';
+import { DatabaseModule, RmqModule } from '@app/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Order, OrdersSchema } from './schemas/order.schema';
 import { OrdersRepository } from './orders.repository';
+import { BILLING_SERVICE } from './constants/services';
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -27,6 +28,9 @@ import { OrdersRepository } from './orders.repository';
         schema: OrdersSchema,
       },
     ]),
+    RmqModule.register({
+      name: BILLING_SERVICE,
+    }),
   ],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersRepository],
