@@ -13,7 +13,10 @@ import { Order, OrdersSchema } from './schemas/order.schema';
       validationSchema: Joi.object({
         MONGO_DATABASE_URL: Joi.string().required(),
       }),
-      envFilePath: 'apps/orders/.env',
+      envFilePath:
+        // [
+        'apps/orders/.env',
+      // 'apps/orders/.env.docker'],
     }),
     DatabaseModule,
     MongooseModule.forFeature([

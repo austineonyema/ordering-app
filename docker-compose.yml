@@ -9,15 +9,18 @@ services:
     env_file:
       - ./apps/orders/.env
     ports:
-      - "${ORDERS_SERVICE_PORT:-3002}:${ORDERS_SERVICE_PORT:-3002}"
+      - "${DO_ORDERS_SERVICE_PORT:-3003}:${DO_ORDERS_SERVICE_PORT:-3003}"
     environment:
-      PORT: ${ORDERS_SERVICE_PORT:-3002}
+      PORT: ${DO_ORDERS_SERVICE_PORT:-3003}
       MONGO_DATABASE_URL: mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD}@mongodb-primary:27017,mongodb-secondary:27017/ordering-app?replicaSet=rs0&authSource=admin
     command: sh -c "node dist/apps/orders/main"
     depends_on:
       - mongodb-primary
       - mongodb-secondary
       - mongodb-arbiter
+    # volumes:
+    #   - .:/usr/src/app
+    #   - /usr/src/app/node_modules
     restart: unless-stopped
 
   auth:
