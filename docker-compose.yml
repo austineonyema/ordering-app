@@ -3,8 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # target: base
       args:
         APP_NAME: orders
+    env_file:
+      - ./apps/orders/.env
     ports:
       - "${ORDERS_SERVICE_PORT:-3002}:${ORDERS_SERVICE_PORT:-3002}"
     environment:
