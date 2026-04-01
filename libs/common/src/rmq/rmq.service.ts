@@ -11,7 +11,7 @@ export class RmqService {
       options: {
         urls: [this.configService.getOrThrow<string>('RABBIT_MQ_URI')],
         queue: this.configService.getOrThrow<string>(
-          'RABBIT_MQ_${queue}_QUEUE',
+          `RABBIT_MQ_${queue}_QUEUE`,
         ),
         noAck,
         persistent: true,
