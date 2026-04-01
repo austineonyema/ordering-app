@@ -5,8 +5,9 @@ import { OrdersRepository } from './orders.repository';
 @Injectable()
 export class OrdersService {
   constructor(@Inject() private readonly ordersRepository: OrdersRepository) {}
-  getHello(): string {
-    return 'Hello World!';
+
+  async getOrders() {
+    return await this.ordersRepository.find({});
   }
 
   async createOrder(createOrderRequest: CreateOrderRequest) {

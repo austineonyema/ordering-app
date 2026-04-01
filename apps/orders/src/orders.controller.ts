@@ -7,8 +7,8 @@ export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  getHello(): string {
-    return this.ordersService.getHello();
+  async getOrders() {
+    return await this.ordersService.getOrders();
   }
 
   @Post()
