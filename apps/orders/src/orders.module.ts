@@ -6,12 +6,14 @@ import Joi from 'joi';
 import { DatabaseModule } from '@app/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Order, OrdersSchema } from './schemas/order.schema';
+import { OrdersRepository } from './orders.repository';
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: Joi.object({
         MONGO_DATABASE_URL: Joi.string().required(),
+        ORDERS_SERVICE_PORT: Joi.number().required(),
       }),
       envFilePath:
         // [
@@ -27,6 +29,6 @@ import { Order, OrdersSchema } from './schemas/order.schema';
     ]),
   ],
   controllers: [OrdersController],
-  providers: [OrdersService],
+  providers: [OrdersService, OrdersRepository],
 })
 export class OrdersModule {}
