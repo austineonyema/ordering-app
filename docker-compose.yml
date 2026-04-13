@@ -4,21 +4,23 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      # target: base
       args:
         APP_NAME: orders
     env_file:
-      - ./apps/orders/.env
+      - ./apps/orders/.env.docker
     ports:
-      - "${DO_ORDERS_SERVICE_PORT:-3003}:${DO_ORDERS_SERVICE_PORT:-3003}"
+      - "${ORDERS_SERVICE_PORT:-3003}:${ORDERS_SERVICE_PORT:-3003}"
     environment:
-      PORT: ${DO_ORDERS_SERVICE_PORT:-3003}
+      PORT: ${DO_PORT:-3003}
       MONGO_DATABASE_URL: mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD}@mongodb-primary:27017,mongodb-secondary:27017/ordering-app?replicaSet=rs0&authSource=admin
     command: sh -c "node dist/apps/orders/main"
     depends_on:
       - mongodb-primary
       - mongodb-secondary
       - mongodb-arbiter
+      - rabbitmq
+      - billing
+      - auth
     # volumes:
     #   - .:/usr/src/app
     #   - /usr/src/app/node_modules
@@ -30,12 +32,20 @@ services:
       dockerfile: Dockerfile
       args:
         APP_NAME: auth
-    # ports:
-    #   - "${AUTH_SERVICE_PORT:-3001}:${AUTH_SERVICE_PORT:-3001}"
+    env_file:
+      - ./apps/auth/.env.docker
+    ports:
+      - "${AUTH_SERVICE_PORT:-3004}:${AUTH_SERVICE_PORT:-3004}"
     environment:
-      PORT: ${AUTH_SERVICE_PORT:-3001}
+      PORT: ${DO_PORT:-3004}
+      MONGO_DATABASE_URL: mongodb://${MONGO_ROOT_USERNAME:-root}:${MONGO_ROOT_PASSWORD}@mongodb-primary:27017,mongodb-secondary:27017/ordering-app?replicaSet=rs0&authSource=admin
     command: sh -c "node dist/apps/auth/main"
     restart: unless-stopped
+    depends_on:
+      - mongodb-primary
+      - mongodb-secondary
+      - mongodb-arbiter
+      - rabbitmq
 
   billing:
     build:
@@ -44,11 +54,17 @@ services:
       args:
         APP_NAME: billing
     env_file:
-      - ./apps/billing/.env
+      - ./apps/billing/.env.docker
     environment:
-      PORT: ${BILLING_SERVICE_PORT:-3000}
+      PORT: ${BILLING_SERVICE_PORT:-3005}
     command: sh -c "node dist/apps/billing/main"
-    restart: unless-stopped    
+    restart: unless-stopped   
+    depends_on:
+      - mongodb-primary
+      - mongodb-secondary
+      - mongodb-arbiter
+      - rabbitmq
+      - auth
 
   mongodb-primary:
     image: docker.io/bitnami/mongodb@sha256:b69e28a2017af190348f14ebc279dc074d58f511f691ecec8ca8a468276e7cb6

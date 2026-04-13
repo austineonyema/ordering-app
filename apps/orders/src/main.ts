@@ -13,9 +13,6 @@ async function bootstrap() {
     }),
   );
   const configService = app.get(ConfigService);
-  await app.listen(
-    configService.getOrThrow('ORDERS_SERVICE_PORT') || 3000,
-    '0.0.0.0',
-  );
+  await app.listen(configService.getOrThrow('PORT') || 3000, '0.0.0.0');
 }
 void bootstrap();

@@ -14,12 +14,9 @@ import { BILLING_SERVICE } from './constants/services';
       isGlobal: true,
       validationSchema: Joi.object({
         MONGO_DATABASE_URL: Joi.string().required(),
-        ORDERS_SERVICE_PORT: Joi.number().required(),
+        PORT: Joi.number().required(),
       }),
-      envFilePath:
-        // [
-        'apps/orders/.env',
-      // 'apps/orders/.env.docker'],
+      envFilePath: ['apps/orders/.env', './apps/orders/.env.docker'],
     }),
     DatabaseModule,
     MongooseModule.forFeature([
