@@ -40,9 +40,16 @@ export class JwtAuthGuard implements CanActivate {
       .pipe(
         // Attach the validated user to the current request/message payload so
         // downstream handlers can access it without parsing the token again.
-        tap((user) => {
-          this.addUser(user, context);
-        }),
+        tap(
+          {
+            next: (user) => {
+              this.addUser(user, context);
+            },
+          },
+          //   (user) => {
+          //   this.addUser(user, context);
+          // }
+        ),
         map(() => true),
         catchError(() => {
           throw new UnauthorizedException();
