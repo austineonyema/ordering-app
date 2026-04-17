@@ -12,13 +12,13 @@ import { AUTH_SERVICE } from './services';
 type AuthenticatedUser = Record<string, unknown>;
 
 interface RpcAuthPayload {
-  Authentication?: string;
+  Authorization?: string;
   user?: AuthenticatedUser;
 }
 
 interface HttpAuthRequest {
-  cookies?: {
-    Authentication?: string;
+  headers?: {
+    authorization?: string;
   };
   user?: AuthenticatedUser;
 }
@@ -30,26 +30,21 @@ export class JwtAuthGuard implements CanActivate {
   canActivate(
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
-    const authentication = this.getAuthentication(context);
+    const authorization = this.getAuthorization(context);
 
-    // Forward the token to the auth service for centralized JWT validation.
+    // Forward the bearer token to the auth service for centralized JWT validation.
     return this.authClient
       .send<AuthenticatedUser, RpcAuthPayload>('validate_user', {
-        Authentication: authentication,
+        Authorization: authorization,
       })
       .pipe(
         // Attach the validated user to the current request/message payload so
         // downstream handlers can access it without parsing the token again.
-        tap(
-          {
-            next: (user) => {
-              this.addUser(user, context);
-            },
+        tap({
+          next: (user) => {
+            this.addUser(user, context);
           },
-          //   (user) => {
-          //   this.addUser(user, context);
-          // }
-        ),
+        }),
         map(() => true),
         catchError(() => {
           throw new UnauthorizedException();
@@ -57,24 +52,24 @@ export class JwtAuthGuard implements CanActivate {
       );
   }
 
-  private getAuthentication(context: ExecutionContext) {
-    let authentication: string | undefined;
+  private getAuthorization(context: ExecutionContext) {
+    let authorization: string | undefined;
 
     if (context.getType() === 'rpc') {
       const rpcData = context.switchToRpc().getData<RpcAuthPayload>();
-      authentication = rpcData.Authentication;
+      authorization = rpcData.Authorization;
     } else if (context.getType() === 'http') {
       const request = context.switchToHttp().getRequest<HttpAuthRequest>();
-      authentication = request.cookies?.Authentication;
+      authorization = request.headers?.authorization;
     }
 
-    if (!authentication) {
+    if (!authorization) {
       throw new UnauthorizedException(
-        'No value was provided for Authentication',
+        'No value was provided for Authorization',
       );
     }
 
-    return authentication;
+    return authorization;
   }
 
   private addUser(user: AuthenticatedUser, context: ExecutionContext) {

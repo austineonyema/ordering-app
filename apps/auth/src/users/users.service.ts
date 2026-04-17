@@ -8,58 +8,80 @@ import * as bcrypt from 'bcrypt';
 import { UsersRepository } from './users.repository';
 import { CreateUserRequest } from './dto/create-user-request';
 import { User } from './schemas/user.schema';
+import { PublicUser, RefreshUserRecord, toPublicUser } from './users.types';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly usersRepository: UsersRepository) {}
 
-  async createUser(request: CreateUserRequest) {
-    await this.validateCreateUserRequest(request);
-    const hashedPassword = await bcrypt.hash(request.password, 10);
+  async createUser(request: CreateUserRequest): Promise<PublicUser> {
+    const normalizedEmail = this.normalizeEmail(request.email);
+    await this.validateCreateUserRequest(normalizedEmail);
     const user = await this.usersRepository.create({
       ...request,
-      password: hashedPassword,
+      email: normalizedEmail,
+      password: request.password,
     });
-    return user;
+
+    return toPublicUser(user);
   }
 
-  private async validateCreateUserRequest(request: CreateUserRequest) {
-    let user: User | null = null;
-    try {
-      user = await this.usersRepository.findOne({
-        email: request.email,
-      });
-    } catch (error) {
-      if (!(error instanceof NotFoundException)) {
-        throw error;
-      }
-    }
+  private async validateCreateUserRequest(email: string) {
+    const user = await this.usersRepository.findByEmail(email);
 
     if (user) {
       throw new UnprocessableEntityException('Email already exists.');
     }
   }
 
-  async validateUser(email: string, password: string) {
-    let user: User;
-    try {
-      user = await this.usersRepository.findOne({ email });
-    } catch (error) {
-      if (error instanceof NotFoundException) {
-        throw new UnauthorizedException('Credentials are not valid.');
-      }
+  async validateUser(email: string, password: string): Promise<PublicUser> {
+    const normalizedEmail = this.normalizeEmail(email);
+    const user = await this.usersRepository.findByEmail(normalizedEmail);
 
-      throw error;
+    if (!user) {
+      throw new UnauthorizedException('Credentials are not valid.');
     }
 
     const passwordIsValid = await bcrypt.compare(password, user.password);
     if (!passwordIsValid) {
       throw new UnauthorizedException('Credentials are not valid.');
     }
+    return toPublicUser(user);
+  }
+
+  async getUser(getUserArgs: Partial<User>): Promise<PublicUser> {
+    return this.usersRepository.findOne(getUserArgs);
+  }
+
+  async findOneForAuth(userId: string): Promise<PublicUser> {
+    const user = await this.usersRepository.findOneForAuth(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
     return user;
   }
 
-  async getUser(getUserArgs: Partial<User>) {
-    return this.usersRepository.findOne(getUserArgs);
+  async findByIdForRefresh(userId: string): Promise<RefreshUserRecord> {
+    const user = await this.usersRepository.findByIdForRefresh(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    return user;
+  }
+
+  async updateRefreshToken(userId: string, refreshTokenHash: string) {
+    await this.usersRepository.updateRefreshToken(userId, refreshTokenHash);
+  }
+
+  async clearRefreshSession(userId: string) {
+    await this.usersRepository.clearRefreshSession(userId);
+  }
+
+  private normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
   }
 }

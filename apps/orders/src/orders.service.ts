@@ -17,13 +17,13 @@ export class OrdersService {
     return await this.ordersRepository.find({});
   }
 
-  async createOrder(request: CreateOrderRequest, authentication: string) {
+  async createOrder(request: CreateOrderRequest, authorization?: string) {
     const session = await this.ordersRepository.startTransaction();
     try {
       const order = await this.ordersRepository.create(request, { session });
       const eventPayload: OrderCreatedEvent = {
         request,
-        Authentication: authentication,
+        Authorization: authorization ?? '',
       };
       await lastValueFrom(
         this.billingClient.emit('order_created', eventPayload),

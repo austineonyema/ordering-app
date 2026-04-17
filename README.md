@@ -1,98 +1,472 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Ordering App
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+`ordering-app` is a NestJS monorepo with three services:
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+- `auth`: owns user auth, token issuance, token refresh, and centralized JWT validation
+- `orders`: exposes HTTP order routes and emits billing events
+- `billing`: consumes RabbitMQ events and processes billing work
 
-## Description
+The project uses:
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+- HTTP for client-facing routes
+- RabbitMQ for service-to-service communication
+- MongoDB for persistence
+- a shared `common` library for auth guards, RMQ setup, and database primitives
 
-## Project setup
+## Mental Model
+
+Think of the project in layers:
+
+1. Route boundary
+   - Controllers receive HTTP requests or RMQ messages.
+2. Use-case layer
+   - Services decide what the app should do.
+3. Persistence/integration layer
+   - Repositories talk to Mongo.
+   - RMQ clients publish to other services.
+4. Shared infrastructure
+   - `libs/common` provides shared auth, RMQ, and database building blocks.
+
+If you are ever lost, start from the controller method that handles the request, then move inward:
+
+`controller -> service -> repository or RMQ client -> shared infra`
+
+## Service Map
+
+### 1. Auth
+
+Auth is the trust service for the whole system.
+
+It does two jobs at once:
+
+- runs as a normal HTTP app
+- runs as an RMQ microservice
+
+That happens in [apps/auth/src/main.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/main.ts):
+
+- `NestFactory.create(AuthModule)` starts the HTTP app
+- `connectMicroservice(...)` attaches the RMQ transport
+- `startAllMicroservices()` starts the RMQ listener
+- `listen(...)` starts the HTTP server
+
+Important files:
+
+- [apps/auth/src/auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts)
+- [apps/auth/src/auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+- [apps/auth/src/strategies/local-strategy.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/strategies/local-strategy.ts)
+- [apps/auth/src/strategies/jwt.strategy.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/strategies/jwt.strategy.ts)
+- [apps/auth/src/users/users.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.controller.ts)
+- [apps/auth/src/users/users.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.service.ts)
+- [apps/auth/src/users/users.repository.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.repository.ts)
+
+### 2. Orders
+
+Orders is the HTTP-facing order service.
+
+It:
+
+- accepts authenticated order requests
+- stores orders in Mongo
+- emits `order_created` to billing over RabbitMQ
+
+Important files:
+
+- [apps/orders/src/orders.controller.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.controller.ts)
+- [apps/orders/src/orders.service.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.service.ts)
+- [apps/orders/src/orders.repository.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.repository.ts)
+- [apps/orders/src/orders.module.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.module.ts)
+
+### 3. Billing
+
+Billing is currently RMQ-first.
+
+It:
+
+- listens for `order_created`
+- validates the forwarded caller token through auth
+- performs billing work
+- acknowledges the RMQ message
+
+Important files:
+
+- [apps/billing/src/billing.controller.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/billing.controller.ts)
+- [apps/billing/src/billing.service.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/billing.service.ts)
+- [apps/billing/src/main.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/main.ts)
+
+## Route and Message Map
+
+### Auth HTTP routes
+
+From [apps/auth/src/auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts):
+
+- `POST /auth/users`
+  - create a new user
+  - entry point: [users.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.controller.ts)
+- `POST /auth/login`
+  - uses `LocalAuthGuard`
+  - validates email/password
+  - returns `accessToken` and `refreshToken`
+- `POST /auth/refresh`
+  - verifies refresh token
+  - rotates refresh token
+  - returns a new token pair
+- `POST /auth/logout`
+  - clears the stored refresh session
+
+### Auth RMQ route
+
+From [apps/auth/src/auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts):
+
+- `validate_user`
+  - RMQ message pattern
+  - protected by auth's local JWT guard
+  - returns the current validated user
+
+This is the route other services rely on for centralized JWT validation.
+
+### Orders HTTP routes
+
+From [apps/orders/src/orders.controller.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.controller.ts):
+
+- `GET /orders`
+  - fetches orders
+- `POST /orders`
+  - protected by the shared JWT guard from `libs/common`
+  - creates the order
+  - forwards the caller's `Authorization` value to billing
+
+### Billing RMQ route
+
+From [apps/billing/src/billing.controller.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/billing.controller.ts):
+
+- `order_created`
+  - RMQ event pattern
+  - protected by the shared JWT guard from `libs/common`
+  - bills the order
+  - acknowledges the RMQ message
+
+## How the Services Connect
+
+### Flow 1: User signup
+
+`POST /auth/users`
+
+Code path:
+
+- [users.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.controller.ts)
+- [users.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.service.ts)
+- [users.repository.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.repository.ts)
+- [user.schema.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/schemas/user.schema.ts)
+
+What happens:
+
+- email is normalized
+- duplicate email is checked
+- user is created
+- password hashing happens at the schema level
+- a public-safe user shape is returned
+
+### Flow 2: User login
+
+`POST /auth/login`
+
+Code path:
+
+- [auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts)
+- [local-auth.guard.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/guards/local-auth.guard.ts)
+- [local-strategy.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/strategies/local-strategy.ts)
+- [users.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.service.ts)
+- [auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+
+What happens:
+
+- `LocalAuthGuard` triggers the local strategy
+- local strategy validates email and password
+- auth service signs:
+  - `accessToken`
+  - `refreshToken`
+- refresh token is persisted through the user layer
+
+### Flow 3: Protected order creation
+
+`POST /orders`
+
+Code path:
+
+- [orders.controller.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.controller.ts)
+- [libs/common/src/auth/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/libs/common/src/auth/jwt-auth.guard.ts)
+- [apps/auth/src/auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts)
+- [apps/auth/src/strategies/jwt.strategy.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/strategies/jwt.strategy.ts)
+- [apps/auth/src/auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+- [apps/orders/src/orders.service.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.service.ts)
+
+What happens:
+
+- orders receives `Authorization: Bearer <token>`
+- shared JWT guard does not validate the token locally
+- instead, it forwards the token to auth via `validate_user`
+- auth validates the token and returns the user
+- orders creates the order in Mongo
+- orders emits `order_created` to billing and includes the same `Authorization` value in the event payload
+
+### Flow 4: Billing after order creation
+
+`order_created` event
+
+Code path:
+
+- [billing.controller.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/billing.controller.ts)
+- [libs/common/src/auth/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/libs/common/src/auth/jwt-auth.guard.ts)
+- [auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts)
+- [billing.service.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/billing.service.ts)
+- [libs/common/src/rmq/rmq.service.ts](/home/techrhythm/dev/ordering-app/libs/common/src/rmq/rmq.service.ts)
+
+What happens:
+
+- billing receives the RMQ event
+- shared JWT guard reads `Authorization` from the event payload
+- billing asks auth to validate the token
+- if valid, billing proceeds
+- billing acks the RMQ message after successful processing
+
+## Two JWT Guards: Why Both Exist
+
+This is one of the most important things to understand in the repo.
+
+### Auth app JWT guard
+
+File:
+
+- [apps/auth/src/guards/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/guards/jwt-auth.guard.ts)
+
+Purpose:
+
+- used only inside the auth service
+- wraps Passport's local JWT strategy
+- validates JWTs directly inside auth
+
+Use it when auth itself needs to validate a token.
+
+### Shared/common JWT guard
+
+File:
+
+- [libs/common/src/auth/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/libs/common/src/auth/jwt-auth.guard.ts)
+
+Purpose:
+
+- used by `orders` and `billing`
+- does not validate the JWT locally
+- forwards the token to auth over RabbitMQ
+
+Use it when another service wants auth to remain the single source of JWT validation truth.
+
+Short version:
+
+- auth guard in `auth` = local token validation
+- shared guard in `common` = delegated token validation
+
+## How to Navigate the Codebase
+
+The easiest way to move through this repo is to choose the entry point based on the question you are asking.
+
+### If the question is about an HTTP route
+
+Start at:
+
+- controller
+
+Then move to:
+
+- service
+- repository or external integration
+
+Example:
+
+`POST /orders`
+
+Traversal:
+
+- [orders.controller.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.controller.ts)
+- [libs/common/src/auth/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/libs/common/src/auth/jwt-auth.guard.ts)
+- [orders.service.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.service.ts)
+- [orders.repository.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.repository.ts)
+
+### If the question is about token validation
+
+Start at:
+
+- [libs/common/src/auth/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/libs/common/src/auth/jwt-auth.guard.ts)
+
+Then jump to:
+
+- [apps/auth/src/auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts)
+- [apps/auth/src/guards/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/guards/jwt-auth.guard.ts)
+- [apps/auth/src/strategies/jwt.strategy.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/strategies/jwt.strategy.ts)
+- [apps/auth/src/auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+
+### If the question is about password or refresh-token handling
+
+Start at:
+
+- [apps/auth/src/users/schemas/user.schema.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/schemas/user.schema.ts)
+
+Then inspect:
+
+- [apps/auth/src/users/users.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.service.ts)
+- [apps/auth/src/auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+
+Reason:
+
+- schema middleware now owns hashing
+- auth service owns token orchestration
+
+### If the question is about user shape or safe returns
+
+Start at:
+
+- [apps/auth/src/users/users.types.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.types.ts)
+
+Then inspect:
+
+- [apps/auth/src/users/users.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.service.ts)
+- [apps/auth/src/auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+
+Reason:
+
+- `PublicUser`
+- `UserWithPassword`
+- `RefreshUserRecord`
+
+These types explain why some paths can see password or refresh hash while public-facing paths cannot.
+
+### If the question is about RabbitMQ setup
+
+Start at:
+
+- [libs/common/src/rmq/rmq.module.ts](/home/techrhythm/dev/ordering-app/libs/common/src/rmq/rmq.module.ts)
+- [libs/common/src/rmq/rmq.service.ts](/home/techrhythm/dev/ordering-app/libs/common/src/rmq/rmq.service.ts)
+
+Then check:
+
+- [apps/auth/src/main.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/main.ts)
+- [apps/billing/src/main.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/main.ts)
+- [apps/orders/src/orders.module.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.module.ts)
+
+Mental shortcut:
+
+- plain `RmqModule` = consumer/server helper
+- `RmqModule.register({ name })` = producer/client proxy
+
+### If the question is about Mongo access
+
+Start at:
+
+- [libs/common/src/database/abstract.repository.ts](/home/techrhythm/dev/ordering-app/libs/common/src/database/abstract.repository.ts)
+- [libs/common/src/database/database.module.ts](/home/techrhythm/dev/ordering-app/libs/common/src/database/database.module.ts)
+
+Then jump into the app-specific repository:
+
+- [apps/auth/src/users/users.repository.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.repository.ts)
+- [apps/orders/src/orders.repository.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.repository.ts)
+
+## Shared `common` Library
+
+`libs/common` is not just utilities. It is the project's infrastructure layer.
+
+Key exports from [libs/common/src/index.ts](/home/techrhythm/dev/ordering-app/libs/common/src/index.ts):
+
+- shared auth module
+- shared JWT guard
+- RMQ module and service
+- database module and abstract repository
+- shared DTOs and event contracts
+
+The most important directories are:
+
+- [libs/common/src/auth](/home/techrhythm/dev/ordering-app/libs/common/src/auth)
+- [libs/common/src/rmq](/home/techrhythm/dev/ordering-app/libs/common/src/rmq)
+- [libs/common/src/database](/home/techrhythm/dev/ordering-app/libs/common/src/database)
+
+## Local Development
+
+Install dependencies:
 
 ```bash
-$ pnpm install
+pnpm install
 ```
 
-## Compile and run the project
+Build individual services:
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+pnpm run build:auth
+pnpm run build:orders
+pnpm run build:billing
 ```
 
-## Run tests
+Build everything:
 
 ```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
+pnpm run build:all
 ```
 
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Run a service directly with Nest CLI:
 
 ```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
+pnpm exec nest start auth --watch
+pnpm exec nest start orders --watch
+pnpm exec nest start billing --watch
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+## Docker
 
-## Resources
+The project includes:
 
-Check out a few resources that may come in handy when working with NestJS:
+- MongoDB replica set
+- RabbitMQ with management UI
+- `auth`
+- `orders`
+- `billing`
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Start everything:
 
-## Support
+```bash
+docker compose up --build
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+Notes:
 
-## Stay in touch
+- root [`.env`](/home/techrhythm/dev/ordering-app/.env) is used for Compose interpolation
+- service-level env files such as [apps/auth/.env](/home/techrhythm/dev/ordering-app/apps/auth/.env) and [apps/auth/.env.docker](/home/techrhythm/dev/ordering-app/apps/auth/.env.docker) are used inside containers at runtime
+- `auth` and `orders` expose HTTP ports
+- `billing` currently runs only as an RMQ microservice
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+## Recommended Reading Order
 
-## License
+If you are onboarding into this repo, this order works well:
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+1. [apps/orders/src/orders.controller.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.controller.ts)
+2. [libs/common/src/auth/jwt-auth.guard.ts](/home/techrhythm/dev/ordering-app/libs/common/src/auth/jwt-auth.guard.ts)
+3. [apps/auth/src/auth.controller.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.controller.ts)
+4. [apps/auth/src/strategies/jwt.strategy.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/strategies/jwt.strategy.ts)
+5. [apps/auth/src/auth.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/auth.service.ts)
+6. [apps/auth/src/users/users.service.ts](/home/techrhythm/dev/ordering-app/apps/auth/src/users/users.service.ts)
+7. [apps/orders/src/orders.service.ts](/home/techrhythm/dev/ordering-app/apps/orders/src/orders.service.ts)
+8. [apps/billing/src/billing.controller.ts](/home/techrhythm/dev/ordering-app/apps/billing/src/billing.controller.ts)
+9. [libs/common/src/rmq/rmq.module.ts](/home/techrhythm/dev/ordering-app/libs/common/src/rmq/rmq.module.ts)
+10. [libs/common/src/database/abstract.repository.ts](/home/techrhythm/dev/ordering-app/libs/common/src/database/abstract.repository.ts)
+
+That reading path teaches:
+
+- route entry
+- auth delegation
+- token validation
+- user lookup
+- service-to-service handoff
+- RMQ and database infrastructure
+
+## Current Architectural Shape
+
+In one sentence:
+
+`auth` owns identity, `orders` owns order creation, `billing` owns billing side effects, and `common` holds the infrastructure that lets those services talk cleanly.

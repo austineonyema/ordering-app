@@ -1,11 +1,12 @@
-import { Controller, Post, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { MessagePattern } from '@nestjs/microservices';
-import type { Response } from 'express';
 import { AuthService } from './auth.service';
 import { CurrentUser } from './current-user.decorator';
 import JwtAuthGuard from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { User } from './users/schemas/user.schema';
+import { TokenRefreshDto } from './dto/token-refresh.dto';
+import { TokenLogoutDto } from './dto/token-logout.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -13,12 +14,19 @@ export class AuthController {
 
   @UseGuards(LocalAuthGuard)
   @Post('login')
-  login(
-    @CurrentUser() user: User,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    this.authService.login(user, response);
-    response.send(user);
+  login(@CurrentUser() user: User) {
+    return this.authService.login(user);
+  }
+
+  @Post('refresh')
+  refresh(@Body() dto: TokenRefreshDto) {
+    return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Post('logout')
+  async logout(@Body() dto: TokenLogoutDto) {
+    await this.authService.logout(dto.refreshToken);
+    return { ok: true };
   }
 
   @UseGuards(JwtAuthGuard)

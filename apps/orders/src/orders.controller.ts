@@ -3,6 +3,12 @@ import { OrdersService } from './orders.service';
 import { CreateOrderRequest } from './dto/create-order.dto';
 import { JwtAuthGuard } from '@app/common';
 
+interface OrdersRequest {
+  headers?: {
+    authorization?: string;
+  };
+}
+
 @Controller('orders')
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}
@@ -14,10 +20,13 @@ export class OrdersController {
 
   @Post()
   @UseGuards(JwtAuthGuard)
-  async createOrder(@Body() request: CreateOrderRequest, @Req() req: any) {
+  async createOrder(
+    @Body() request: CreateOrderRequest,
+    @Req() req: OrdersRequest,
+  ) {
     return await this.ordersService.createOrder(
       request,
-      req.cookies?.Authentication,
+      req.headers?.authorization,
     );
   }
 }
