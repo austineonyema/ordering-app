@@ -7,6 +7,7 @@ import {
   Connection,
   type ClientSession,
   type QueryFilter,
+  type ProjectionType,
 } from 'mongoose';
 import { AbstractDocument } from './abstract.schema';
 
@@ -31,8 +32,23 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
     ).toJSON() as unknown as TDocument;
   }
 
+  async findOneOptional<TResult = TDocument>(
+    filterQuery: QueryFilter<TDocument>,
+    options?: {
+      select?: ProjectionType<TDocument>;
+    },
+  ): Promise<TResult | null> {
+    let query = this.model.findOne(filterQuery, {}, { lean: true });
+
+    if (options?.select) {
+      query = query.select(options.select);
+    }
+
+    return query.lean<TResult>().exec();
+  }
+
   async findOne(filterQuery: QueryFilter<TDocument>): Promise<TDocument> {
-    const document = await this.model.findOne(filterQuery, {}, { lean: true });
+    const document = await this.findOneOptional(filterQuery);
 
     if (!document) {
       this.logger.warn('Document not found with filterQuery', filterQuery);
@@ -45,11 +61,13 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
   async findOneAndUpdate(
     filterQuery: QueryFilter<TDocument>,
     update: UpdateQuery<TDocument>,
-  ) {
-    const document = await this.model.findOneAndUpdate(filterQuery, update, {
-      lean: true,
-      new: true,
-    });
+  ): Promise<TDocument> {
+    const document = await this.model
+      .findOneAndUpdate(filterQuery, update, {
+        lean: true,
+        returnDocument: 'after',
+      })
+      .exec();
 
     if (!document) {
       this.logger.warn(`Document not found with filterQuery:`, filterQuery);
@@ -66,7 +84,7 @@ export abstract class AbstractRepository<TDocument extends AbstractDocument> {
     return this.model.findOneAndUpdate(filterQuery, document, {
       lean: true,
       upsert: true,
-      new: true,
+      returnDocument: 'after',
     });
   }
 

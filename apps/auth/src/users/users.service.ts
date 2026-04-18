@@ -54,7 +54,9 @@ export class UsersService {
   }
 
   async findOneForAuth(userId: string): Promise<PublicUser> {
-    const user = await this.usersRepository.findOneForAuth(userId);
+    const user = await this.usersRepository.findOneOptional<PublicUser>({
+      _id: userId,
+    });
 
     if (!user) {
       throw new NotFoundException('User not found.');
