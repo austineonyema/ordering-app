@@ -57,3 +57,4 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 .codex
 mongo.docker-compose.yml
 .env.docker*
+docs*

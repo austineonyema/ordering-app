@@ -5,9 +5,12 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from './users/users.service';
 import { PublicUser, toPublicUser } from './users/users.types';
 
+type TokenPurpose = 'access' | 'refresh';
+
 export interface TokenPayload {
   userId: string;
   email: string;
+  type: TokenPurpose;
 }
 
 @Injectable()
@@ -19,13 +22,11 @@ export class AuthService {
   ) {}
 
   async login(user: PublicUser) {
-    const tokenPayload: TokenPayload = {
-      userId: user._id.toHexString(),
-      email: user.email,
-    };
+    const accessTokenPayload = this.createTokenPayload(user, 'access');
+    const refreshTokenPayload = this.createTokenPayload(user, 'refresh');
 
-    const accessToken = this.jwtService.sign(tokenPayload);
-    const refreshToken = this.generateRefreshToken(tokenPayload);
+    const accessToken = this.jwtService.sign(accessTokenPayload);
+    const refreshToken = this.generateRefreshToken(refreshTokenPayload);
 
     await this.usersService.updateRefreshToken(
       user._id.toHexString(),
@@ -55,6 +56,10 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token.');
     }
 
+    if (payload.type !== 'refresh') {
+      throw new UnauthorizedException('Invalid refresh token.');
+    }
+
     const user = await this.usersService.findByIdForRefresh(payload.userId);
     if (!user.refreshTokenHash) {
       throw new UnauthorizedException('Session expired.');
@@ -69,13 +74,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token.');
     }
 
-    const nextPayload: TokenPayload = {
-      userId: user._id.toHexString(),
-      email: user.email,
-    };
+    const publicUser = toPublicUser(user);
+    const nextAccessTokenPayload = this.createTokenPayload(
+      publicUser,
+      'access',
+    );
+    const nextRefreshTokenPayload = this.createTokenPayload(
+      publicUser,
+      'refresh',
+    );
 
-    const accessToken = this.jwtService.sign(nextPayload);
-    const nextRefreshToken = this.generateRefreshToken(nextPayload);
+    const accessToken = this.jwtService.sign(nextAccessTokenPayload);
+    const nextRefreshToken = this.generateRefreshToken(nextRefreshTokenPayload);
 
     await this.usersService.updateRefreshToken(
       user._id.toHexString(),
@@ -83,7 +93,7 @@ export class AuthService {
     );
 
     return {
-      user: toPublicUser(user),
+      user: publicUser,
       accessToken,
       refreshToken: nextRefreshToken,
     };
@@ -102,6 +112,10 @@ export class AuthService {
         secret: refreshSecret,
       });
     } catch {
+      return;
+    }
+
+    if (payload.type !== 'refresh') {
       return;
     }
 
@@ -126,6 +140,17 @@ export class AuthService {
     return this.usersService.findOneForAuth(userId);
   }
 
+  private createTokenPayload(
+    user: PublicUser,
+    type: TokenPurpose,
+  ): TokenPayload {
+    return {
+      userId: user._id.toHexString(),
+      email: user.email,
+      type,
+    };
+  }
+
   private generateRefreshToken(payload: TokenPayload) {
     return this.jwtService.sign(payload, {
       secret: this.getRefreshSecret(),
@@ -134,15 +159,13 @@ export class AuthService {
   }
 
   private getRefreshSecret() {
-    return (
-      this.configService.get<string>('JWT_REFRESH_SECRET') ??
-      this.configService.getOrThrow<string>('JWT_SECRET')
-    );
+    return this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
   }
 
   private getRefreshExpirationInSeconds() {
-    const configuredExpiration =
-      this.configService.get<string>('JWT_REFRESH_EXPIRATION') ?? '7d';
+    const configuredExpiration = this.configService.getOrThrow<string>(
+      'JWT_REFRESH_EXPIRATION',
+    );
 
     const directSeconds = Number(configuredExpiration);
     if (!Number.isNaN(directSeconds)) {
