@@ -8,5 +8,7 @@ export * from './rmq/rmq.service';
 export * from './dto/order-request.dto';
 export * from './events/order-created.event';
 export * from './auth/auth.module';
+export * from './auth/current-user.decorator';
 export * from './auth/jwt-auth.guard';
 export * from './auth/services';
+export * from './auth/auth.types';

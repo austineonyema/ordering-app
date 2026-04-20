@@ -1,12 +1,20 @@
-import { IsPhoneNumber, IsPositive, IsString } from 'class-validator';
+import {
+  IsMongoId,
+  IsPhoneNumber,
+  IsPositive,
+  IsString,
+} from 'class-validator';
 
 export class OrderRequestDto {
   @IsString()
-  name: string;
+  name!: string;
 
   @IsPositive()
-  price: number;
+  price!: number;
 
   @IsPhoneNumber()
-  phoneNumber: string;
+  phoneNumber!: string;
+
+  @IsMongoId()
+  userId!: string;
 }
