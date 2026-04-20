@@ -1,5 +1,5 @@
 import {
-  IsMongoId,
+  // IsMongoId,
   IsPhoneNumber,
   IsPositive,
   IsString,
@@ -15,6 +15,6 @@ export class OrderRequestDto {
   @IsPhoneNumber()
   phoneNumber!: string;
 
-  @IsMongoId()
-  userId!: string;
+  // @IsMongoId()
+  // userId!: string;
 }

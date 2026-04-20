@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { RmqModule, DatabaseModule } from '@app/common';
+import { RmqModule, DatabaseModule, LoggingModule } from '@app/common';
 import Joi from 'joi';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -36,6 +36,9 @@ import { UsersModule } from './users/users.module';
         },
       }),
       inject: [ConfigService],
+    }),
+    LoggingModule.register({
+      serviceName: 'auth',
     }),
   ],
   controllers: [AuthController],

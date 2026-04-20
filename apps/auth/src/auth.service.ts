@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -15,6 +15,8 @@ export interface TokenPayload {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService,
@@ -31,6 +33,13 @@ export class AuthService {
     await this.usersService.updateRefreshToken(
       user._id.toHexString(),
       refreshToken,
+    );
+
+    this.logger.log(
+      {
+        userId: user._id.toHexString(),
+      },
+      'User login successful',
     );
 
     return {
@@ -90,6 +99,13 @@ export class AuthService {
     await this.usersService.updateRefreshToken(
       user._id.toHexString(),
       nextRefreshToken,
+    );
+
+    this.logger.log(
+      {
+        userId: publicUser._id.toHexString(),
+      },
+      'Refresh token rotated successfully',
     );
 
     return {

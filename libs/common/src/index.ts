@@ -12,3 +12,4 @@ export * from './auth/current-user.decorator';
 export * from './auth/jwt-auth.guard';
 export * from './auth/services';
 export * from './auth/auth.types';
+export * from './logging/logging.module';

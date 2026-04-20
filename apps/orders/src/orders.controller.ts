@@ -46,9 +46,11 @@ export class OrdersController {
   async createOrder(
     @Body() request: CreateOrderRequest,
     @Req() req: OrdersRequest,
+    @CurrentUser() user: PlainAuth,
   ) {
     return await this.ordersService.createOrder(
       request,
+      user._id,
       req.headers?.authorization,
     );
   }
