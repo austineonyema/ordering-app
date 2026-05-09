@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-jwt';
 import { AuthService, TokenPayload } from '../auth.service';
+import { normalizePemKey } from '@app/common';
 
 interface AuthenticatedRequest {
   headers?: {
@@ -40,7 +41,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   ) {
     super({
       jwtFromRequest: extractToken,
-      secretOrKey: configService.getOrThrow('JWT_SECRET'),
+      secretOrKey: normalizePemKey(
+        configService.getOrThrow('AUTH_JWT_PUBLIC_KEY'),
+      ),
+      algorithms: ['RS256'],
       ignoreExpiration: false,
     });
   }

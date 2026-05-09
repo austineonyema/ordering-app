@@ -1,4 +1,15 @@
+export type TokenPurpose = 'access' | 'refresh';
+
 export type PlainAuth = {
-  _id: string;
+  userId: string;
   email: string;
+  type: TokenPurpose;
+};
+
+export type AccessTokenClaims = PlainAuth & {
+  type: 'access';
+};
+
+export type RefreshTokenClaims = PlainAuth & {
+  type: 'refresh';
 };

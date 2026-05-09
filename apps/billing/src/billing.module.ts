@@ -11,6 +11,7 @@ import Joi from 'joi';
       validationSchema: Joi.object({
         RABBIT_MQ_URI: Joi.string().required(),
         RABBIT_MQ_BILLING_QUEUE: Joi.string().required(),
+        AUTH_JWT_PUBLIC_KEY: Joi.string().required(),
       }),
       envFilePath: ['apps/billing/.env', './apps/billing/.env'],
     }),

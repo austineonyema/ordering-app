@@ -1,22 +1,8 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Req,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { CreateOrderRequest } from './dto/create-order.dto';
-import { CurrentUser, JwtAuthGuard, type PlainAuth } from '@app/common';
+import { type AccessTokenClaims, CurrentUser, JwtAuthGuard } from '@app/common';
 import { UserOrdersDto } from './dto/user-order.dto';
-
-interface OrdersRequest {
-  headers?: {
-    authorization?: string;
-  };
-}
 
 @Controller('orders')
 export class OrdersController {
@@ -30,9 +16,8 @@ export class OrdersController {
 
   @Get('self')
   @UseGuards(JwtAuthGuard)
-  async getUserOrders(@CurrentUser() user: PlainAuth) {
-    // return await this.ordersService.getUserOrders(user._id, user);
-    return await this.ordersService.getUserOrders(user._id);
+  async getUserOrders(@CurrentUser() user: AccessTokenClaims) {
+    return await this.ordersService.getUserOrders(user.userId);
   }
   //Todo will implememnt RBAC to enable admin only
   @Get(':id')
@@ -45,13 +30,8 @@ export class OrdersController {
   @UseGuards(JwtAuthGuard)
   async createOrder(
     @Body() request: CreateOrderRequest,
-    @Req() req: OrdersRequest,
-    @CurrentUser() user: PlainAuth,
+    @CurrentUser() user: AccessTokenClaims,
   ) {
-    return await this.ordersService.createOrder(
-      request,
-      user._id,
-      req.headers?.authorization,
-    );
+    return await this.ordersService.createOrder(request, user.userId);
   }
 }

@@ -19,11 +19,7 @@ export class OrdersService {
     return await this.ordersRepository.find({});
   }
 
-  async createOrder(
-    request: CreateOrderRequest,
-    user_id: string,
-    authorization?: string,
-  ) {
+  async createOrder(request: CreateOrderRequest, user_id: string) {
     const session = await this.ordersRepository.startTransaction();
 
     this.logger.log(
@@ -51,7 +47,7 @@ export class OrdersService {
 
       const eventPayload: OrderCreatedEvent = {
         request,
-        Authorization: authorization ?? '',
+        userId: user_id,
       };
       await lastValueFrom(
         this.billingClient.emit('order_created', eventPayload),

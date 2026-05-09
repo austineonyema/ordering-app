@@ -1,12 +1,11 @@
 import { Body, Controller, Post, UseGuards } from '@nestjs/common';
-import { MessagePattern } from '@nestjs/microservices';
 import { CurrentUser } from '@app/common';
 import { AuthService } from './auth.service';
-import JwtAuthGuard from './guards/jwt-auth.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { User } from './users/schemas/user.schema';
 import { TokenRefreshDto } from './dto/token-refresh.dto';
 import { TokenLogoutDto } from './dto/token-logout.dto';
+// import { MessagePattern, Payload } from '@nestjs/microservices';
 
 @Controller('auth')
 export class AuthController {
@@ -29,9 +28,8 @@ export class AuthController {
     return { ok: true };
   }
 
-  @UseGuards(JwtAuthGuard)
-  @MessagePattern('validate_user')
-  validateUser(@CurrentUser() user: User) {
-    return user;
-  }
+  // @MessagePattern('get_user')
+  // getUser(@Payload() data: { userId: string }) {
+  //   return this.authService.getUser(data.userId);
+  // }
 }

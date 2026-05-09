@@ -20,6 +20,7 @@ import { BILLING_SERVICE } from './constants/services';
       validationSchema: Joi.object({
         MONGO_DATABASE_URL: Joi.string().required(),
         PORT: Joi.number().required(),
+        AUTH_JWT_PUBLIC_KEY: Joi.string().required(),
       }),
       envFilePath: ['apps/orders/.env', './apps/orders/.env.docker'],
     }),

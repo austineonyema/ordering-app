@@ -1,84 +1,93 @@
 import {
   CanActivate,
   ExecutionContext,
-  Inject,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
-import { catchError, map, Observable, tap } from 'rxjs';
-import { AUTH_SERVICE } from './services';
-
-type AuthenticatedUser = Record<string, unknown>;
-
-interface RpcAuthPayload {
-  Authorization?: string;
-  user?: AuthenticatedUser;
-}
+import { JwtService } from '@nestjs/jwt';
+import { type AccessTokenClaims } from './auth.types';
 
 interface HttpAuthRequest {
   headers?: {
     authorization?: string;
   };
-  user?: AuthenticatedUser;
+  user?: AccessTokenClaims;
+}
+
+interface RpcAuthPayload {
+  Authorization?: string;
+  user?: AccessTokenClaims;
 }
 
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(@Inject(AUTH_SERVICE) private authClient: ClientProxy) {}
+  constructor(private readonly jwtService: JwtService) {}
 
-  canActivate(
-    context: ExecutionContext,
-  ): boolean | Promise<boolean> | Observable<boolean> {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const authorization = this.getAuthorization(context);
+    const token = this.extractBearerToken(authorization);
 
-    // Forward the bearer token to the auth service for centralized JWT validation.
-    return this.authClient
-      .send<AuthenticatedUser, RpcAuthPayload>('validate_user', {
-        Authorization: authorization,
-      })
-      .pipe(
-        // Attach the validated user to the current request/message payload so
-        // downstream handlers can access it without parsing the token again.
-        tap({
-          next: (user) => {
-            this.addUser(user, context);
-          },
-        }),
-        map(() => true),
-        catchError(() => {
-          throw new UnauthorizedException();
-        }),
-      );
-  }
-
-  private getAuthorization(context: ExecutionContext) {
-    let authorization: string | undefined;
-
-    if (context.getType() === 'rpc') {
-      const rpcData = context.switchToRpc().getData<RpcAuthPayload>();
-      authorization = rpcData.Authorization;
-    } else if (context.getType() === 'http') {
-      const request = context.switchToHttp().getRequest<HttpAuthRequest>();
-      authorization = request.headers?.authorization;
+    let payload: AccessTokenClaims;
+    try {
+      payload = await this.jwtService.verifyAsync<AccessTokenClaims>(token);
+    } catch {
+      throw new UnauthorizedException('Invalid access token');
     }
 
-    if (!authorization) {
-      throw new UnauthorizedException(
-        'No value was provided for Authorization',
-      );
+    if (payload.type !== 'access') {
+      throw new UnauthorizedException('Invalid access token');
     }
 
-    return authorization;
+    this.attachUser(payload, context);
+    return true;
   }
 
-  private addUser(user: AuthenticatedUser, context: ExecutionContext) {
-    if (context.getType() === 'rpc') {
-      const rpcData = context.switchToRpc().getData<RpcAuthPayload>();
-      rpcData.user = user;
-    } else if (context.getType() === 'http') {
+  private getAuthorization(context: ExecutionContext): string {
+    if (context.getType() === 'http') {
       const request = context.switchToHttp().getRequest<HttpAuthRequest>();
-      request.user = user;
+      const authorization = request.headers?.authorization;
+      if (!authorization) {
+        throw new UnauthorizedException('Authorization header missing');
+      }
+      return authorization;
+    }
+
+    if (context.getType() === 'rpc') {
+      const data = context.switchToRpc().getData<RpcAuthPayload>();
+      const authorization = data.Authorization;
+      if (!authorization) {
+        throw new UnauthorizedException('Authorization value missing');
+      }
+      return authorization;
+    }
+
+    throw new UnauthorizedException('Unsupported execution context');
+  }
+
+  private extractBearerToken(authorization: string): string {
+    if (!authorization.startsWith('Bearer ')) {
+      throw new UnauthorizedException('Invalid authorization format');
+    }
+
+    return authorization.slice(7);
+  }
+
+  private attachUser(payload: AccessTokenClaims, context: ExecutionContext) {
+    const user = {
+      userId: payload.userId,
+      email: payload.email,
+      type: payload.type,
+    };
+
+    if (context.getType() === 'http') {
+      const request = context.switchToHttp().getRequest<HttpAuthRequest>();
+      request.user = user as AccessTokenClaims;
+      return;
+    }
+
+    if (context.getType() === 'rpc') {
+      const data = context.switchToRpc().getData<RpcAuthPayload>();
+      data.user = user as AccessTokenClaims;
     }
   }
 }

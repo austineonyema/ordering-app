@@ -1,7 +1,12 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
-import { RmqModule, DatabaseModule, LoggingModule } from '@app/common';
+import {
+  RmqModule,
+  DatabaseModule,
+  LoggingModule,
+  normalizePemKey,
+} from '@app/common';
 import Joi from 'joi';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -18,7 +23,8 @@ import { UsersModule } from './users/users.module';
       isGlobal: true,
       validationSchema: Joi.object({
         PORT: Joi.number().required(),
-        JWT_SECRET: Joi.string().required(),
+        AUTH_JWT_PRIVATE_KEY: Joi.string().required(),
+        AUTH_JWT_PUBLIC_KEY: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().required(),
         JWT_REFRESH_SECRET: Joi.string().required(),
         JWT_REFRESH_EXPIRATION: Joi.string().required(),
@@ -30,9 +36,15 @@ import { UsersModule } from './users/users.module';
     }),
     JwtModule.registerAsync({
       useFactory: (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        privateKey: normalizePemKey(
+          configService.getOrThrow<string>('AUTH_JWT_PRIVATE_KEY'),
+        ),
+        publicKey: normalizePemKey(
+          configService.getOrThrow<string>('AUTH_JWT_PUBLIC_KEY'),
+        ),
         signOptions: {
-          expiresIn: `${configService.get('JWT_EXPIRATION')}s`,
+          algorithm: 'RS256',
+          expiresIn: `${configService.getOrThrow('JWT_EXPIRATION')}s`,
         },
       }),
       inject: [ConfigService],

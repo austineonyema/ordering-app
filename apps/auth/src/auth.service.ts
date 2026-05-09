@@ -60,6 +60,7 @@ export class AuthService {
     try {
       payload = this.jwtService.verify<TokenPayload>(refreshToken, {
         secret: refreshSecret,
+        algorithms: ['HS256'],
       });
     } catch {
       throw new UnauthorizedException('Invalid refresh token.');
@@ -126,6 +127,7 @@ export class AuthService {
     try {
       payload = this.jwtService.verify<TokenPayload>(refreshToken, {
         secret: refreshSecret,
+        algorithms: ['HS256'],
       });
     } catch {
       return;
@@ -170,6 +172,7 @@ export class AuthService {
   private generateRefreshToken(payload: TokenPayload) {
     return this.jwtService.sign(payload, {
       secret: this.getRefreshSecret(),
+      algorithm: 'HS256',
       expiresIn: this.getRefreshExpirationInSeconds(),
     });
   }

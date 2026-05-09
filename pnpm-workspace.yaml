@@ -1,5 +1,6 @@
 allowBuilds:
   '@nestjs/core': true
+  bcrypt: true
   unrs-resolver: true
 overrides:
   ajv@>=7.0.0-alpha.0 <8.18.0: '>=8.18.0'
