@@ -69,7 +69,6 @@ export class OrdersService {
   }
 
   async getUserOrders(userId: string) {
-    // async getUserOrders(userId: string, user: PlainAuth) {
     return await this.ordersRepository.find({
       userId: new Types.ObjectId(userId),
     });
