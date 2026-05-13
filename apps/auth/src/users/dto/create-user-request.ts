@@ -3,6 +3,7 @@ import {
   IsNotEmpty,
   IsString,
   IsStrongPassword,
+  MaxLength,
 } from 'class-validator';
 
 export class CreateUserRequest {
@@ -11,10 +12,12 @@ export class CreateUserRequest {
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(20)
   firstName!: string;
 
   @IsString()
   @IsNotEmpty()
+  @MaxLength(20)
   lastName!: string;
 
   @IsString()
