@@ -19,6 +19,8 @@ export class UsersService {
     await this.validateCreateUserRequest(normalizedEmail);
     const user = await this.usersRepository.create({
       ...request,
+      firstName: request.firstName,
+      lastName: request.lastName,
       email: normalizedEmail,
       password: request.password,
     });

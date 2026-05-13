@@ -8,6 +8,12 @@ export class User extends AbstractDocument {
   @Prop()
   email!: string;
 
+  @Prop()
+  firstName!: string;
+
+  @Prop()
+  lastName!: string;
+
   @Prop({ select: false })
   password!: string;
 
