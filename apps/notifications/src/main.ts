@@ -9,7 +9,7 @@ async function bootstrap() {
     bufferLogs: true,
   });
   const rmqService = app.get<RmqService>(RmqService);
-  app.connectMicroservice(rmqService.getOptions('BILLING'));
+  app.connectMicroservice(rmqService.getOptions('NOTIFICATION'));
   app.useGlobalInterceptors(new LoggerErrorInterceptor());
   app.useLogger(app.get(Logger));
   await app.startAllMicroservices();

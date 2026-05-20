@@ -1,0 +1,1 @@
+toMailMessage(command: SendNotificationCommand): MailMessage
